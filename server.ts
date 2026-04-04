@@ -1,0 +1,144 @@
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import path from "path";
+import axios from "axios";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json());
+
+  const EVENTBRITE_TOKEN = process.env.EVENTBRITE_PRIVATE_TOKEN;
+  const ORG_ID = "1937809150453";
+  const TEMPLATE_EVENT_ID = "1986677712518";
+
+  const ebClient = axios.create({
+    baseURL: "https://www.eventbriteapi.com/v3",
+    headers: {
+      Authorization: `Bearer ${EVENTBRITE_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  // API routes
+  app.post("/api/eventbrite/prepare", async (req, res) => {
+    try {
+      const { title, summary, overview, start_time, end_time, location_name } = req.body;
+
+      if (!EVENTBRITE_TOKEN) {
+        return res.status(500).json({ error: "EVENTBRITE_PRIVATE_TOKEN is not configured." });
+      }
+
+      // 1. Copy template event
+      console.log(`Copying event ${TEMPLATE_EVENT_ID}...`);
+      // The Eventbrite API for copying an event is POST /v3/events/:event_id/copy/
+      const copyResponse = await ebClient.post(`/events/${TEMPLATE_EVENT_ID}/copy/`);
+      const newEventId = copyResponse.data.id;
+
+      // 2. Handle Venue (Location)
+      let venueId = null;
+      if (location_name) {
+        try {
+          console.log(`Creating venue for ${location_name}...`);
+          // Note: Eventbrite venues require specific address fields. 
+          // If only a name is provided, we use it as address_1 and name.
+          const venueResponse = await ebClient.post(`/organizations/${ORG_ID}/venues/`, {
+            venue: {
+              name: location_name,
+              address: {
+                address_1: location_name,
+                city: "Online", 
+                region: "CA",
+                postal_code: "90001",
+                country: "US"
+              }
+            }
+          });
+          venueId = venueResponse.data.id;
+        } catch (venueErr: any) {
+          console.warn("Venue creation failed, will try to update event without it:", venueErr.response?.data || venueErr.message);
+        }
+      }
+
+      // 3. Update the copied event
+      console.log(`Updating event ${newEventId}...`);
+      // According to documentation, we should ensure the event is in a state that allows updates.
+      // Copied events are usually in 'draft' status.
+      const updateData: any = {
+        event: {
+          name: { html: title },
+          summary: summary,
+          description: { html: overview },
+          start: {
+            timezone: "UTC",
+            utc: start_time,
+          },
+          end: {
+            timezone: "UTC",
+            utc: end_time,
+          },
+          // Ensure the event is not publicly searchable until published if desired
+          listed: false,
+          shareable: false
+        },
+      };
+
+      if (venueId) {
+        updateData.event.venue_id = venueId;
+      }
+
+      const updateResponse = await ebClient.post(`/events/${newEventId}/`, updateData);
+      
+      res.json({
+        id: newEventId,
+        url: updateResponse.data.url,
+        status: updateResponse.data.status,
+      });
+    } catch (error: any) {
+      console.error("Eventbrite Prepare Error:", error.response?.data || error.message);
+      res.status(500).json({ error: error.response?.data?.error_description || "Failed to prepare event" });
+    }
+  });
+
+  app.post("/api/eventbrite/publish", async (req, res) => {
+    try {
+      const { event_id } = req.body;
+      if (!EVENTBRITE_TOKEN) {
+        return res.status(500).json({ error: "EVENTBRITE_PRIVATE_TOKEN is not configured." });
+      }
+
+      console.log(`Publishing event ${event_id}...`);
+      const publishResponse = await ebClient.post(`/events/${event_id}/publish/`);
+      
+      res.json({ success: true, status: publishResponse.data.published });
+    } catch (error: any) {
+      console.error("Eventbrite Publish Error:", error.response?.data || error.message);
+      res.status(500).json({ error: error.response?.data?.error_description || "Failed to publish event" });
+    }
+  });
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();
