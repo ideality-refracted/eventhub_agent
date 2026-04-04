@@ -28,7 +28,7 @@ async function startServer() {
   // API routes
   app.post("/api/eventbrite/prepare", async (req, res) => {
     try {
-      const { title, summary, overview, start_time, end_time, location_name } = req.body;
+      const { title, summary, start_time, end_time, location_name } = req.body;
 
       if (!EVENTBRITE_TOKEN) {
         return res.status(500).json({ error: "EVENTBRITE_PRIVATE_TOKEN is not configured." });

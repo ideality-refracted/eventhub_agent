@@ -67,7 +67,7 @@ export default function App() {
           systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template, or query existing events.
           
           The process for creating an event is:
-          1. Collect event details: title, summary (max 140 chars), overview (detailed description), date and time (start and end), and location name.
+          1. Collect event details: title, summary (max 140 chars), date and time (start and end), and location name. Enforce the format of "2026-04-18T15:00:00" for date and time.
           2. When you have all details, call 'prepare_event' to copy the template and update it.
           3. When 'prepare_event' succeeds, it returns an 'id' and a 'url'. You MUST show the user this exact 'url' so they can review the event, and ask if they want to publish it.
           4. If they say yes, call 'publish_event' with the event_id.
@@ -78,7 +78,7 @@ export default function App() {
           - Organization ID: 1937809150453
           - Template Event ID: 1986677712518
           
-          Always be professional and helpful. If the user provides a date like "next Friday", convert it to ISO 8601 format (e.g., 2023-10-27T10:00:00Z) for the tool call.`,
+          Always be professional and helpful. If the user provides a date like "next Friday", convert it to the enforced format (e.g., 2026-04-18T15:00:00) for the tool call.`,
           tools: [
             {
               functionDeclarations: [
@@ -90,12 +90,11 @@ export default function App() {
                     properties: {
                       title: { type: Type.STRING, description: "The title of the event" },
                       summary: { type: Type.STRING, description: "A short summary (max 140 chars)" },
-                      overview: { type: Type.STRING, description: "A detailed overview/description (HTML allowed)" },
-                      start_time: { type: Type.STRING, description: "Start time in ISO 8601 format (e.g., 2023-10-27T10:00:00Z)" },
-                      end_time: { type: Type.STRING, description: "End time in ISO 8601 format (e.g., 2023-10-27T12:00:00Z)" },
+                      start_time: { type: Type.STRING, description: "Start time. Enforce the format of \"2026-04-18T15:00:00\"" },
+                      end_time: { type: Type.STRING, description: "End time. Enforce the format of \"2026-04-18T15:00:00\"" },
                       location_name: { type: Type.STRING, description: "The name of the location" }
                     },
-                    required: ["title", "summary", "overview", "start_time", "end_time", "location_name"]
+                    required: ["title", "summary", "start_time", "end_time", "location_name"]
                   }
                 },
                 {
@@ -137,7 +136,7 @@ export default function App() {
           systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template, or query existing events.
           
           The process for creating an event is:
-          1. Collect event details: title, summary (max 140 chars), overview (detailed description), date and time (start and end), and location name.
+          1. Collect event details: title, summary (max 140 chars), date and time (start and end), and location name. Enforce the format of "2026-04-18T15:00:00" for date and time.
           2. When you have all details, call 'prepare_event' to copy the template and update it.
           3. When 'prepare_event' succeeds, it returns an 'id' and a 'url'. You MUST show the user this exact 'url' so they can review the event, and ask if they want to publish it.
           4. If they say yes, call 'publish_event' with the event_id.
@@ -148,7 +147,7 @@ export default function App() {
           - Organization ID: 1937809150453
           - Template Event ID: 1986677712518
           
-          Always be professional and helpful. If the user provides a date like "next Friday", convert it to ISO 8601 format (e.g., 2023-10-27T10:00:00Z) for the tool call.`,
+          Always be professional and helpful. If the user provides a date like "next Friday", convert it to the enforced format (e.g., 2026-04-18T15:00:00) for the tool call.`,
           tools: [
             {
               functionDeclarations: [
@@ -160,12 +159,11 @@ export default function App() {
                     properties: {
                       title: { type: Type.STRING, description: "The title of the event" },
                       summary: { type: Type.STRING, description: "A short summary (max 140 chars)" },
-                      overview: { type: Type.STRING, description: "A detailed overview/description (HTML allowed)" },
-                      start_time: { type: Type.STRING, description: "Start time in ISO 8601 format (e.g., 2023-10-27T10:00:00Z)" },
-                      end_time: { type: Type.STRING, description: "End time in ISO 8601 format (e.g., 2023-10-27T12:00:00Z)" },
+                      start_time: { type: Type.STRING, description: "Start time. Enforce the format of \"2026-04-18T15:00:00\"" },
+                      end_time: { type: Type.STRING, description: "End time. Enforce the format of \"2026-04-18T15:00:00\"" },
                       location_name: { type: Type.STRING, description: "The name of the location" }
                     },
-                    required: ["title", "summary", "overview", "start_time", "end_time", "location_name"]
+                    required: ["title", "summary", "start_time", "end_time", "location_name"]
                   }
                 },
                 {
