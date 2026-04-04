@@ -39,7 +39,7 @@ interface Message {
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you create new events from your template, or query the latest event you've created. How can I help you today?" }
+    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you with three things:\n\n1. Create a new event from a template.\n2. Query the latest event you've created.\n3. Update an existing event (you'll need to provide the event ID).\n\nHow can I help you today?" }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +65,11 @@ export default function App() {
         model: "gemini-3-flash-preview",
         config: {
           systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template, or query existing events.
+
+          Clearly tell user your can help on three things in a numbered list:
+          1. Create a new event from a template.
+          2. Query the latest event you've created.
+          3. Update an existing event (you'll need to provide the event ID).
           
           The process for creating an event is:
           1. Collect event details: title, summary (max 140 chars), date and time (start and end), and location name. Enforce the format of "2026-04-18T15:00:00" for date and time.
@@ -73,6 +78,8 @@ export default function App() {
           4. If they say yes, call 'publish_event' with the event_id.
           
           You can also query the latest event created by the organization using 'get_latest_event'.
+          
+          You can also update an existing event using 'update_event'. You MUST ask the user for the event ID first, and then the fields they want to update.
           
           Constants:
           - Organization ID: 1937809150453
@@ -114,6 +121,22 @@ export default function App() {
                   parameters: {
                     type: Type.OBJECT,
                     properties: {}
+                  }
+                },
+                {
+                  name: "update_event",
+                  description: "Updates an existing event. Requires the event ID and any fields to update.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      event_id: { type: Type.STRING, description: "The ID of the event to update" },
+                      title: { type: Type.STRING, description: "The new title of the event" },
+                      summary: { type: Type.STRING, description: "A new short summary (max 140 chars)" },
+                      start_time: { type: Type.STRING, description: "New start time. Enforce the format of \"2026-04-18T15:00:00\"" },
+                      end_time: { type: Type.STRING, description: "New end time. Enforce the format of \"2026-04-18T15:00:00\"" },
+                      location_name: { type: Type.STRING, description: "The new name of the location" }
+                    },
+                    required: ["event_id"]
                   }
                 }
               ]
@@ -143,6 +166,8 @@ export default function App() {
           
           You can also query the latest event created by the organization using 'get_latest_event'.
           
+          You can also update an existing event using 'update_event'. You MUST ask the user for the event ID first, and then the fields they want to update.
+          
           Constants:
           - Organization ID: 1937809150453
           - Template Event ID: 1986677712518
@@ -183,6 +208,22 @@ export default function App() {
                   parameters: {
                     type: Type.OBJECT,
                     properties: {}
+                  }
+                },
+                {
+                  name: "update_event",
+                  description: "Updates an existing event. Requires the event ID and any fields to update.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      event_id: { type: Type.STRING, description: "The ID of the event to update" },
+                      title: { type: Type.STRING, description: "The new title of the event" },
+                      summary: { type: Type.STRING, description: "A new short summary (max 140 chars)" },
+                      start_time: { type: Type.STRING, description: "New start time. Enforce the format of \"2026-04-18T15:00:00\"" },
+                      end_time: { type: Type.STRING, description: "New end time. Enforce the format of \"2026-04-18T15:00:00\"" },
+                      location_name: { type: Type.STRING, description: "The new name of the location" }
+                    },
+                    required: ["event_id"]
                   }
                 }
               ]
@@ -228,6 +269,19 @@ export default function App() {
               const apiRes = await fetch("/api/eventbrite/latest");
               const data = await apiRes.json();
               if (!apiRes.ok) throw new Error(data.error || "Failed to fetch latest event");
+              results.push({ functionResponse: { name: call.name, response: data } });
+            } catch (err: any) {
+              results.push({ functionResponse: { name: call.name, response: { error: err.message } } });
+            }
+          } else if (call.name === "update_event") {
+            try {
+              const apiRes = await fetch("/api/eventbrite/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(call.args)
+              });
+              const data = await apiRes.json();
+              if (!apiRes.ok) throw new Error(data.error || "Failed to update event");
               results.push({ functionResponse: { name: call.name, response: data } });
             } catch (err: any) {
               results.push({ functionResponse: { name: call.name, response: { error: err.message } } });

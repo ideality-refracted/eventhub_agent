@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import axios from "axios";
 import dotenv from "dotenv";
+import { toDate } from "date-fns-tz";
 
 dotenv.config();
 
@@ -69,17 +70,22 @@ async function startServer() {
       console.log(`Updating event ${newEventId}...`);
       // According to documentation, we should ensure the event is in a state that allows updates.
       // Copied events are usually in 'draft' status.
+      const localToUtc = (localStr: string, timeZone: string) => {
+        const date = toDate(localStr, { timeZone });
+        return date.toISOString().replace(/\.000Z$/, 'Z');
+      };
+
       const updateData: any = {
         event: {
           name: { html: title },
           summary: summary,
           start: {
-            timezone: "UTC",
-            utc: start_time,
+            timezone: "America/Los_Angeles",
+            utc: localToUtc(start_time, "America/Los_Angeles"),
           },
           end: {
-            timezone: "UTC",
-            utc: end_time,
+            timezone: "America/Los_Angeles",
+            utc: localToUtc(end_time, "America/Los_Angeles"),
           },
           listed: true,
           shareable: true
@@ -100,6 +106,70 @@ async function startServer() {
     } catch (error: any) {
       console.error("Eventbrite Prepare Error:", error.response?.data || error.message);
       res.status(500).json({ error: error.response?.data?.error_description || "Failed to prepare event" });
+    }
+  });
+
+  app.post("/api/eventbrite/update", async (req, res) => {
+    try {
+      const { event_id, title, summary, start_time, end_time, location_name } = req.body;
+
+      if (!EVENTBRITE_TOKEN) {
+        return res.status(500).json({ error: "EVENTBRITE_PRIVATE_TOKEN is not configured." });
+      }
+
+      if (!event_id) {
+        return res.status(400).json({ error: "event_id is required." });
+      }
+
+      let venueId = null;
+      if (location_name) {
+        try {
+          console.log(`Creating venue for ${location_name}...`);
+          const venueResponse = await ebClient.post(`/organizations/${ORG_ID}/venues/`, {
+            venue: {
+              name: location_name,
+              address: {
+                address_1: location_name,
+                city: "Online", 
+                region: "CA",
+                postal_code: "90001",
+                country: "US"
+              }
+            }
+          });
+          venueId = venueResponse.data.id;
+        } catch (venueErr: any) {
+          console.warn("Venue creation failed:", venueErr.response?.data || venueErr.message);
+        }
+      }
+
+      const localToUtc = (localStr: string, timeZone: string) => {
+        const date = toDate(localStr, { timeZone });
+        return date.toISOString().replace(/\.000Z$/, 'Z');
+      };
+
+      console.log(`Updating event ${event_id}...`);
+      const updateData: any = { event: {} };
+      if (title) updateData.event.name = { html: title };
+      if (summary) updateData.event.summary = summary;
+      if (start_time) updateData.event.start = { timezone: "America/Los_Angeles", utc: localToUtc(start_time, "America/Los_Angeles") };
+      if (end_time) updateData.event.end = { timezone: "America/Los_Angeles", utc: localToUtc(end_time, "America/Los_Angeles") };
+      if (venueId) updateData.event.venue_id = venueId;
+
+      if (Object.keys(updateData.event).length === 0) {
+        return res.status(400).json({ error: "No fields to update." });
+      }
+
+      const updateResponse = await ebClient.post(`/events/${event_id}/`, updateData);
+      
+      res.json({
+        id: event_id,
+        url: updateResponse.data.url,
+        status: updateResponse.data.status,
+      });
+    } catch (error: any) {
+      console.error("Eventbrite Update Error:", error.response?.data || error.message);
+      res.status(500).json({ error: error.response?.data?.error_description || "Failed to update event" });
     }
   });
 
