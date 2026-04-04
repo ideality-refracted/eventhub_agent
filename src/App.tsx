@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { Send, Bot, User, Loader2, Calendar, MapPin, Image as ImageIcon, CheckCircle2, ExternalLink, AlertCircle } from 'lucide-react';
+import { Send, Bot, User, Loader2, Calendar, MapPin, Image as ImageIcon, CheckCircle2, ExternalLink, AlertCircle, Search, Edit } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -399,9 +399,9 @@ export default function App() {
             </button>
           </div>
           <div className="mt-3 flex flex-wrap gap-2 justify-center">
-            <QuickAction icon={<Calendar className="w-3 h-3" />} label="Set Date" onClick={() => setInput(prev => prev + " Date: ")} />
-            <QuickAction icon={<MapPin className="w-3 h-3" />} label="Add Location" onClick={() => setInput(prev => prev + " Location: ")} />
-            <QuickAction icon={<ImageIcon className="w-3 h-3" />} label="Add Image" onClick={() => setInput(prev => prev + " Image: ")} />
+            <QuickAction icon={<Calendar className="w-3 h-3" />} label="Create Event" onClick={() => setInput("I want to create a new event from a template.")} />
+            <QuickAction icon={<Search className="w-3 h-3" />} label="Query Latest Event" onClick={() => setInput("Can you query the latest event I've created?")} />
+            <QuickAction icon={<Edit className="w-3 h-3" />} label="Update Event" onClick={() => setInput("I want to update an existing event.")} />
           </div>
         </div>
       </footer>
