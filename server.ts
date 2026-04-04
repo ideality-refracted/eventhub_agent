@@ -98,6 +98,32 @@ async function startServer() {
 
       const updateResponse = await ebClient.post(`/events/${newEventId}/`, updateData);
       
+      // 4. Update ticket class "General Admission"
+      try {
+        console.log(`Fetching ticket classes for event ${newEventId}...`);
+        const ticketsResponse = await ebClient.get(`/events/${newEventId}/ticket_classes/`);
+        const ticketClasses = ticketsResponse.data.ticket_classes;
+        
+        const gaTicket = ticketClasses.find((tc: any) => tc.name === "General Admission");
+        if (gaTicket) {
+          console.log(`Updating ticket class ${gaTicket.id}...`);
+          const nowUtc = new Date().toISOString().split('.')[0] + 'Z';
+          const eventStartUtc = localToUtc(start_time, "America/Los_Angeles");
+          
+          await ebClient.post(`/events/${newEventId}/ticket_classes/${gaTicket.id}/`, {
+            ticket_class: {
+              sales_start: nowUtc,
+              sales_end: eventStartUtc
+            }
+          });
+          console.log("Ticket class updated successfully.");
+        } else {
+          console.warn("General Admission ticket class not found.");
+        }
+      } catch (ticketErr: any) {
+        console.warn("Failed to update ticket class:", ticketErr.response?.data || ticketErr.message);
+      }
+
       res.json({
         id: newEventId,
         url: updateResponse.data.url,
