@@ -121,6 +121,42 @@ async function startServer() {
     }
   });
 
+  app.get("/api/eventbrite/latest", async (req, res) => {
+    try {
+      if (!EVENTBRITE_TOKEN) {
+        return res.status(500).json({ error: "EVENTBRITE_PRIVATE_TOKEN is not configured." });
+      }
+
+      console.log(`Fetching latest event for organization ${ORG_ID}...`);
+      const response = await ebClient.get(`/organizations/${ORG_ID}/events/`, {
+        params: {
+          order_by: 'created_desc',
+          page_size: 1
+        }
+      });
+      
+      const events = response.data.events || [];
+      if (events.length === 0) {
+        return res.json({ message: "No events found for this organization." });
+      }
+      
+      const latestEvent = events[0];
+      
+      res.json({
+        id: latestEvent.id,
+        name: latestEvent.name?.text,
+        url: latestEvent.url,
+        start: latestEvent.start?.utc,
+        end: latestEvent.end?.utc,
+        status: latestEvent.status,
+        created: latestEvent.created
+      });
+    } catch (error: any) {
+      console.error("Eventbrite Latest Event Error:", error.response?.data || error.message);
+      res.status(500).json({ error: error.response?.data?.error_description || "Failed to fetch latest event" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

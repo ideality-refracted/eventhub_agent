@@ -64,13 +64,15 @@ export default function App() {
       const chat = ai.chats.create({
         model: "gemini-3-flash-preview",
         config: {
-          systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template.
+          systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template, or query existing events.
           
-          The process is:
+          The process for creating an event is:
           1. Collect event details: title, summary (max 140 chars), overview (detailed description), date and time (start and end), and location name.
           2. When you have all details, call 'prepare_event' to copy the template and update it.
           3. When 'prepare_event' succeeds, it returns an 'id' and a 'url'. You MUST show the user this exact 'url' so they can review the event, and ask if they want to publish it.
           4. If they say yes, call 'publish_event' with the event_id.
+          
+          You can also query the latest event created by the organization using 'get_latest_event'.
           
           Constants:
           - Organization ID: 1937809150453
@@ -105,6 +107,14 @@ export default function App() {
                       event_id: { type: Type.STRING, description: "The ID of the event to publish" }
                     },
                     required: ["event_id"]
+                  }
+                },
+                {
+                  name: "get_latest_event",
+                  description: "Queries the latest event created by the organization. Returns event details including title, start time, end time, status, and URL.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {}
                   }
                 }
               ]
@@ -124,13 +134,15 @@ export default function App() {
         model: "gemini-3-flash-preview",
         contents: [...history, { role: 'user', parts: [{ text: userMessage }] }],
         config: {
-          systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template.
+          systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template, or query existing events.
           
-          The process is:
+          The process for creating an event is:
           1. Collect event details: title, summary (max 140 chars), overview (detailed description), date and time (start and end), and location name.
           2. When you have all details, call 'prepare_event' to copy the template and update it.
           3. When 'prepare_event' succeeds, it returns an 'id' and a 'url'. You MUST show the user this exact 'url' so they can review the event, and ask if they want to publish it.
           4. If they say yes, call 'publish_event' with the event_id.
+          
+          You can also query the latest event created by the organization using 'get_latest_event'.
           
           Constants:
           - Organization ID: 1937809150453
@@ -165,6 +177,14 @@ export default function App() {
                       event_id: { type: Type.STRING, description: "The ID of the event to publish" }
                     },
                     required: ["event_id"]
+                  }
+                },
+                {
+                  name: "get_latest_event",
+                  description: "Queries the latest event created by the organization. Returns event details including title, start time, end time, status, and URL.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {}
                   }
                 }
               ]
@@ -201,6 +221,15 @@ export default function App() {
               });
               const data = await apiRes.json();
               if (!apiRes.ok) throw new Error(data.error || "Failed to publish event");
+              results.push({ functionResponse: { name: call.name, response: data } });
+            } catch (err: any) {
+              results.push({ functionResponse: { name: call.name, response: { error: err.message } } });
+            }
+          } else if (call.name === "get_latest_event") {
+            try {
+              const apiRes = await fetch("/api/eventbrite/latest");
+              const data = await apiRes.json();
+              if (!apiRes.ok) throw new Error(data.error || "Failed to fetch latest event");
               results.push({ functionResponse: { name: call.name, response: data } });
             } catch (err: any) {
               results.push({ functionResponse: { name: call.name, response: { error: err.message } } });
