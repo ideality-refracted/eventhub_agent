@@ -81,9 +81,8 @@ async function startServer() {
             timezone: "UTC",
             utc: end_time,
           },
-          // Ensure the event is not publicly searchable until published if desired
-          listed: false,
-          shareable: false
+          listed: true,
+          shareable: true
         },
       };
 
