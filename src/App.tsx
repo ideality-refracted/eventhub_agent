@@ -39,7 +39,7 @@ interface Message {
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you create events by copying your template. What's the title of your event?" }
+    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you create new events from your template, or query the latest event you've created. How can I help you today?" }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

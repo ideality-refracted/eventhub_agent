@@ -21,6 +21,7 @@ async function startServer() {
     headers: {
       Authorization: `Bearer ${EVENTBRITE_TOKEN}`,
       "Content-Type": "application/json",
+      "Accept": "application/json",
     },
   });
 
@@ -72,7 +73,6 @@ async function startServer() {
         event: {
           name: { html: title },
           summary: summary,
-          description: { html: overview },
           start: {
             timezone: "UTC",
             utc: start_time,
@@ -128,19 +128,29 @@ async function startServer() {
       }
 
       console.log(`Fetching latest event for organization ${ORG_ID}...`);
-      const response = await ebClient.get(`/organizations/${ORG_ID}/events/`, {
-        params: {
-          order_by: 'created_desc',
-          page_size: 1
-        }
-      });
       
-      const events = response.data.events || [];
-      if (events.length === 0) {
-        return res.json({ message: "No events found for this organization." });
+      let hasMore = true;
+      let continuation = '';
+      let latestEvent = null;
+      
+      while (hasMore) {
+        const response = await ebClient.get(`/organizations/${ORG_ID}/events/`, {
+          params: continuation ? { continuation } : {}
+        });
+        
+        const events = response.data.events || [];
+        if (events.length > 0) {
+          // The default order is created_asc, so the last event in the last page is the latest
+          latestEvent = events[events.length - 1];
+        }
+        
+        hasMore = response.data.pagination.has_more_items;
+        continuation = response.data.pagination.continuation;
       }
       
-      const latestEvent = events[0];
+      if (!latestEvent) {
+        return res.json({ message: "No events found for this organization." });
+      }
       
       res.json({
         id: latestEvent.id,
