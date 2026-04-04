@@ -4,8 +4,12 @@ import path from "path";
 import axios from "axios";
 import dotenv from "dotenv";
 import { toDate } from "date-fns-tz";
+import multer from "multer";
+import FormData from "form-data";
 
 dotenv.config();
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 async function startServer() {
   const app = express();
@@ -21,7 +25,6 @@ async function startServer() {
     baseURL: "https://www.eventbriteapi.com/v3",
     headers: {
       Authorization: `Bearer ${EVENTBRITE_TOKEN}`,
-      "Content-Type": "application/json",
       "Accept": "application/json",
     },
   });
@@ -94,6 +97,10 @@ async function startServer() {
 
       if (venueId) {
         updateData.event.venue_id = venueId;
+      }
+      
+      if (req.body.logo_id) {
+        updateData.event.logo_id = req.body.logo_id;
       }
 
       const updateResponse = await ebClient.post(`/events/${newEventId}/`, updateData);
@@ -181,6 +188,7 @@ async function startServer() {
       if (start_time) updateData.event.start = { timezone: "America/Los_Angeles", utc: localToUtc(start_time, "America/Los_Angeles") };
       if (end_time) updateData.event.end = { timezone: "America/Los_Angeles", utc: localToUtc(end_time, "America/Los_Angeles") };
       if (venueId) updateData.event.venue_id = venueId;
+      if (req.body.logo_id) updateData.event.logo_id = req.body.logo_id;
 
       if (Object.keys(updateData.event).length === 0) {
         return res.status(400).json({ error: "No fields to update." });
@@ -259,6 +267,58 @@ async function startServer() {
     } catch (error: any) {
       console.error("Eventbrite Latest Event Error:", error.response?.data || error.message);
       res.status(500).json({ error: error.response?.data?.error_description || "Failed to fetch latest event" });
+    }
+  });
+
+  app.post("/api/eventbrite/upload-image", upload.single("image"), async (req, res) => {
+    try {
+      const file = req.file;
+
+      if (!EVENTBRITE_TOKEN) {
+        return res.status(500).json({ error: "EVENTBRITE_PRIVATE_TOKEN is not configured." });
+      }
+
+      if (!file) {
+        return res.status(400).json({ error: "image is required." });
+      }
+
+      console.log(`Uploading image...`);
+
+      // 1. Get upload token and URL
+      const uploadReqResponse = await ebClient.get("/media/upload/", {
+        params: { type: "image-event-logo" }
+      });
+      
+      const { upload_token, upload_url, upload_data } = uploadReqResponse.data;
+
+      // 2. Upload file to AWS
+      const formData = new FormData();
+      for (const key in upload_data) {
+        formData.append(key, upload_data[key]);
+      }
+      formData.append("file", file.buffer, file.originalname);
+
+      await axios.post(upload_url, formData, {
+        headers: formData.getHeaders()
+      });
+
+      // 3. Notify Eventbrite
+      const notifyResponse = await ebClient.post("/media/upload/", {
+        upload_token: upload_token
+      });
+
+      const mediaId = notifyResponse.data.id;
+      const logoUrl = notifyResponse.data.url;
+
+      res.json({
+        success: true,
+        media_id: mediaId,
+        logo_url: logoUrl
+      });
+
+    } catch (error: any) {
+      console.error("Eventbrite Image Upload Error:", error.response?.data || error.message);
+      res.status(500).json({ error: error.response?.data?.error_description || "Failed to upload cover image" });
     }
   });
 

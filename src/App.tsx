@@ -37,13 +37,74 @@ interface Message {
   isPending?: boolean;
 }
 
+const EVENTBRITE_TOOLS = [
+  {
+    functionDeclarations: [
+      {
+        name: "prepare_event",
+        description: "Copies the template event and updates it with new details. Returns the new event ID and URL.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING, description: "The title of the event" },
+            summary: { type: Type.STRING, description: "A short summary (max 140 chars)" },
+            start_time: { type: Type.STRING, description: "Start time. Enforce the format of \"2026-04-18T15:00:00\"" },
+            end_time: { type: Type.STRING, description: "End time. Enforce the format of \"2026-04-18T15:00:00\"" },
+            location_name: { type: Type.STRING, description: "The name of the location" },
+            logo_id: { type: Type.STRING, description: "The media ID of the uploaded image to use as the event cover image" }
+          },
+          required: ["title", "summary", "start_time", "end_time", "location_name"]
+        }
+      },
+      {
+        name: "publish_event",
+        description: "Publishes the event so it becomes live on Eventbrite.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            event_id: { type: Type.STRING, description: "The ID of the event to publish" }
+          },
+          required: ["event_id"]
+        }
+      },
+      {
+        name: "get_latest_event",
+        description: "Queries the latest event created by the organization. Returns event details including title, start time, end time, status, and URL.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {}
+        }
+      },
+      {
+        name: "update_event",
+        description: "Updates an existing event. Requires the event ID and any fields to update.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            event_id: { type: Type.STRING, description: "The ID of the event to update" },
+            title: { type: Type.STRING, description: "The new title of the event" },
+            summary: { type: Type.STRING, description: "A new short summary (max 140 chars)" },
+            start_time: { type: Type.STRING, description: "New start time. Enforce the format of \"2026-04-18T15:00:00\"" },
+            end_time: { type: Type.STRING, description: "New end time. Enforce the format of \"2026-04-18T15:00:00\"" },
+            location_name: { type: Type.STRING, description: "The new name of the location" },
+            logo_id: { type: Type.STRING, description: "The media ID of the uploaded image to use as the event cover image" }
+          },
+          required: ["event_id"]
+        }
+      }
+    ]
+  }
+];
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you with three things:\n\n1. Create a new event from a template.\n2. Query the latest event you've created.\n3. Update an existing event (you'll need to provide the event ID).\n\nHow can I help you today?" }
+    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you with three things:\n\n1. Create a new event from a template (you can also attach a cover image).\n2. Query the latest event you've created.\n3. Update an existing event (you can provide a new cover image).\n\nHow can I help you today?" }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -53,12 +114,55 @@ export default function App() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && !selectedImage) || isLoading) return;
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    
+    let messageText = userMessage;
+    let mediaId = null;
+
     setIsLoading(true);
+
+    if (selectedImage) {
+      setMessages(prev => [...prev, { role: 'user', text: userMessage ? `${userMessage}\n\n[Uploading Cover image...]` : '[Uploading Cover image...]' }]);
+      try {
+        const formData = new FormData();
+        formData.append('image', selectedImage);
+        
+        const uploadRes = await fetch('/api/eventbrite/upload-image', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error || "Failed to upload image");
+        
+        mediaId = uploadData.media_id;
+        messageText = userMessage ? `${userMessage}\n\n[User attached a cover image. Media ID: ${mediaId}]` : `[User attached a Cover image. Media ID: ${mediaId}]`;
+        
+        // Update the message to show it was uploaded
+        setMessages(prev => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1].text = userMessage ? `${userMessage}\n\n[Cover image uploaded successfully]` : '[Cover image uploaded successfully]';
+          return newMessages;
+        });
+      } catch (error) {
+        console.error(error);
+        setMessages(prev => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1].text = userMessage ? `${userMessage}\n\n[Cover image upload failed]` : '[Cover image upload failed]';
+          return newMessages;
+        });
+        setIsLoading(false);
+        setSelectedImage(null);
+        return;
+      }
+    } else {
+      setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    }
+
+    setSelectedImage(null);
 
     try {
       const chat = ai.chats.create({
@@ -86,62 +190,7 @@ export default function App() {
           - Template Event ID: 1986677712518
           
           Always be professional and helpful. If the user provides a date like "next Friday", convert it to the enforced format (e.g., 2026-04-18T15:00:00) for the tool call.`,
-          tools: [
-            {
-              functionDeclarations: [
-                {
-                  name: "prepare_event",
-                  description: "Copies the template event and updates it with new details. Returns the new event ID and URL.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING, description: "The title of the event" },
-                      summary: { type: Type.STRING, description: "A short summary (max 140 chars)" },
-                      start_time: { type: Type.STRING, description: "Start time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      end_time: { type: Type.STRING, description: "End time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      location_name: { type: Type.STRING, description: "The name of the location" }
-                    },
-                    required: ["title", "summary", "start_time", "end_time", "location_name"]
-                  }
-                },
-                {
-                  name: "publish_event",
-                  description: "Publishes the event so it becomes live on Eventbrite.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      event_id: { type: Type.STRING, description: "The ID of the event to publish" }
-                    },
-                    required: ["event_id"]
-                  }
-                },
-                {
-                  name: "get_latest_event",
-                  description: "Queries the latest event created by the organization. Returns event details including title, start time, end time, status, and URL.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {}
-                  }
-                },
-                {
-                  name: "update_event",
-                  description: "Updates an existing event. Requires the event ID and any fields to update.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      event_id: { type: Type.STRING, description: "The ID of the event to update" },
-                      title: { type: Type.STRING, description: "The new title of the event" },
-                      summary: { type: Type.STRING, description: "A new short summary (max 140 chars)" },
-                      start_time: { type: Type.STRING, description: "New start time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      end_time: { type: Type.STRING, description: "New end time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      location_name: { type: Type.STRING, description: "The new name of the location" }
-                    },
-                    required: ["event_id"]
-                  }
-                }
-              ]
-            }
-          ]
+          tools: EVENTBRITE_TOOLS
         }
       });
 
@@ -154,7 +203,7 @@ export default function App() {
 
       let response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [...history, { role: 'user', parts: [{ text: userMessage }] }],
+        contents: [...history, { role: 'user', parts: [{ text: messageText }] }],
         config: {
           systemInstruction: `You are an Eventbrite Agent. Your goal is to help users create events using a template, or query existing events.
           
@@ -173,62 +222,7 @@ export default function App() {
           - Template Event ID: 1986677712518
           
           Always be professional and helpful. If the user provides a date like "next Friday", convert it to the enforced format (e.g., 2026-04-18T15:00:00) for the tool call.`,
-          tools: [
-            {
-              functionDeclarations: [
-                {
-                  name: "prepare_event",
-                  description: "Copies the template event and updates it with new details. Returns the new event ID and URL.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING, description: "The title of the event" },
-                      summary: { type: Type.STRING, description: "A short summary (max 140 chars)" },
-                      start_time: { type: Type.STRING, description: "Start time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      end_time: { type: Type.STRING, description: "End time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      location_name: { type: Type.STRING, description: "The name of the location" }
-                    },
-                    required: ["title", "summary", "start_time", "end_time", "location_name"]
-                  }
-                },
-                {
-                  name: "publish_event",
-                  description: "Publishes the event so it becomes live on Eventbrite.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      event_id: { type: Type.STRING, description: "The ID of the event to publish" }
-                    },
-                    required: ["event_id"]
-                  }
-                },
-                {
-                  name: "get_latest_event",
-                  description: "Queries the latest event created by the organization. Returns event details including title, start time, end time, status, and URL.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {}
-                  }
-                },
-                {
-                  name: "update_event",
-                  description: "Updates an existing event. Requires the event ID and any fields to update.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      event_id: { type: Type.STRING, description: "The ID of the event to update" },
-                      title: { type: Type.STRING, description: "The new title of the event" },
-                      summary: { type: Type.STRING, description: "A new short summary (max 140 chars)" },
-                      start_time: { type: Type.STRING, description: "New start time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      end_time: { type: Type.STRING, description: "New end time. Enforce the format of \"2026-04-18T15:00:00\"" },
-                      location_name: { type: Type.STRING, description: "The new name of the location" }
-                    },
-                    required: ["event_id"]
-                  }
-                }
-              ]
-            }
-          ]
+          tools: EVENTBRITE_TOOLS
         }
       }));
 
@@ -381,22 +375,51 @@ export default function App() {
       {/* Input Area */}
       <footer className="bg-white border-t border-slate-200 p-6">
         <div className="max-w-3xl mx-auto">
-          <div className="relative flex items-center">
+          {selectedImage && (
+            <div className="mb-3 flex items-center gap-2 bg-orange-50 text-orange-700 px-3 py-2 rounded-lg text-sm">
+              <ImageIcon className="w-4 h-4" />
+              <span className="truncate max-w-[200px]">{selectedImage.name}</span>
+              <button onClick={() => setSelectedImage(null)} className="ml-auto hover:text-orange-900">
+                &times;
+              </button>
+            </div>
+          )}
+          <div className="relative flex items-center gap-2">
             <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Type your message..."
-              className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setSelectedImage(e.target.files[0]);
+                }
+              }}
             />
             <button
-              onClick={handleSend}
-              disabled={isLoading || !input.trim()}
-              className="absolute right-2 p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"
+              title="Upload Cover Image"
             >
-              <Send className="w-5 h-5" />
+              <ImageIcon className="w-5 h-5" />
             </button>
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Type your message..."
+                className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+              />
+              <button
+                onClick={handleSend}
+                disabled={isLoading || (!input.trim() && !selectedImage)}
+                className="absolute right-2 top-1.5 p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2 justify-center">
             <QuickAction icon={<Calendar className="w-3 h-3" />} label="Create Event" onClick={() => setInput("I want to create a new event from a template.")} />
