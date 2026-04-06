@@ -363,7 +363,15 @@ export default function App() {
                   : "bg-white border border-slate-200 text-slate-800 rounded-tl-none"
               )}>
                 <div className="markdown-body prose prose-slate prose-sm max-w-none">
-                  <Markdown>{msg.text}</Markdown>
+                  <Markdown
+                    components={{
+                      a: ({ node, ...props }) => (
+                        <a {...props} target="_blank" rel="noopener noreferrer" />
+                      ),
+                    }}
+                  >
+                    {msg.text}
+                  </Markdown>
                 </div>
               </div>
             </div>
