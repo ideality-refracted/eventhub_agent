@@ -105,6 +105,7 @@ export default function App() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -112,6 +113,14 @@ export default function App() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+    }
+  }, [input]);
 
   const handleSend = async () => {
     if ((!input.trim() && !selectedImage) || isLoading) return;
@@ -384,7 +393,7 @@ export default function App() {
               </button>
             </div>
           )}
-          <div className="relative flex items-center gap-2">
+          <div className="relative flex items-end gap-2">
             <input
               type="file"
               accept="image/*"
@@ -404,18 +413,25 @@ export default function App() {
               <ImageIcon className="w-5 h-5" />
             </button>
             <div className="relative flex-1">
-              <input
-                type="text"
+              <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
                 placeholder="Type your message..."
-                className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm"
+                rows={1}
+                className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm resize-none overflow-y-auto"
+                style={{ minHeight: '46px', maxHeight: '150px' }}
               />
               <button
                 onClick={handleSend}
                 disabled={isLoading || (!input.trim() && !selectedImage)}
-                className="absolute right-2 top-1.5 p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                className="absolute right-2 bottom-1.5 p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="w-5 h-5" />
               </button>
