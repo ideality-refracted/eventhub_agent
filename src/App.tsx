@@ -327,7 +327,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-800">Eventbrite Agent</h1>
-            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">ADK Powered</p>
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">BY IDEALITY REFRACTED</p>
           </div>
         </div>
         <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full">
