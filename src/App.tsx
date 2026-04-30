@@ -98,7 +98,7 @@ const EVENTBRITE_TOOLS = [
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you with three things:\n\n1. Create a new event from a template (you can also attach a cover image).\n2. Query the latest event you've created.\n3. Update an existing event (you can provide a new cover image).\n\nHow can I help you today?" }
+    { role: 'model', text: "Hello! I'm your Eventbrite Agent. I can help you with three tasks:\n\n1. (1) Create a new event from a template (you can also attach a cover image).\n2. (2) Query the latest event you've created.\n3. (3) Update an existing event (you can provide a new cover image).\n\nHow can I help you today? You can also select a task to do by clicking one of the three buttons below." }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
